@@ -4,238 +4,182 @@
 #include "Utils.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
-Library::Library() : nextItemId(1), nextLoanId(1) {}
+Library::Library() : nextLoanId(1) {
+    load();
+}
 
 Library::~Library() {
     for (auto* item : items) delete item;
 }
 
-bool Library::isItemIdUnique(int id) const {
-    for (auto* item : items) {
-        if (item->getId() == id) return false;
-    }
-    return true;
+bool Library::idExists(int id) const {
+    for (auto* item : items) if (item->getId() == id) return true;
+    return false;
 }
 
-bool Library::isTicketUnique(int ticket) const {
-    for (const auto& r : readers) {
-        if (r.getTicket() == ticket) return false;
-    }
-    return true;
-}
-
-LibraryItem* Library::findItemPtr(int id) const {
-    for (auto* item : items) {
-        if (item->getId() == id) return item;
-    }
-    return nullptr;
+bool Library::ticketExists(int ticket) const {
+    for (const auto& r : readers) if (r.getTicket() == ticket) return true;
+    return false;
 }
 
 void Library::addBook() {
-    std::string title = readNonEmpty("Название: ");
-    int year = readInt("Год (1500-2100): ", 1500, 2100);
-    std::string author = readNonEmpty("Автор: ");
-    std::string isbn = readNonEmpty("ISBN: ");
-    addBookDirect(title, year, author, isbn);
-    std::cout << "Книга добавлена.\n";
-}
-
-void Library::addBookDirect(const std::string& title, int year, const std::string& author, const std::string& isbn) {
-    int id = nextItemId++;
+    int id = readInt("id: ", 1, 1000000);
+    if (idExists(id)) { std::cout << "id уже существует\n"; return; }
+    std::string title = readNonEmpty("title: ");
+    int year = readInt("year: ", 1500, 2100);
+    std::string author = readNonEmpty("author: ");
+    std::string isbn = readNonEmpty("isbn: ");
     items.push_back(new Book(id, title, year, true, author, isbn));
+    std::cout << "Книга добавлена\n";
 }
 
 void Library::addMagazine() {
-    std::string title = readNonEmpty("Название: ");
-    int year = readInt("Год (1500-2100): ", 1500, 2100);
-    int issueNumber = readInt("Номер выпуска: ", 1, 1000000);
-    int month = readInt("Месяц (1-12): ", 1, 12);
-    addMagazineDirect(title, year, issueNumber, month);
-    std::cout << "Журнал добавлен.\n";
+    int id = readInt("id: ", 1, 1000000);
+    if (idExists(id)) { std::cout << "id уже существует\n"; return; }
+    std::string title = readNonEmpty("title: ");
+    int year = readInt("year: ", 1500, 2100);
+    int issue = readInt("issueNumber: ", 1, 100000);
+    int month = readInt("month: ", 1, 12);
+    items.push_back(new Magazine(id, title, year, true, issue, month));
+    std::cout << "Журнал добавлен\n";
 }
 
-void Library::addMagazineDirect(const std::string& title, int year, int issueNumber, int month) {
-    int id = nextItemId++;
-    items.push_back(new Magazine(id, title, year, true, issueNumber, month));
+void Library::registerReader() {
+    int ticket = readInt("ticket: ", 1, 1000000);
+    if (ticketExists(ticket)) { std::cout << "ticket уже существует\n"; return; }
+    std::string name = readNonEmpty("fullName: ");
+    readers.push_back(Reader(ticket, name));
+    std::cout << "Читатель зарегистрирован\n";
 }
 
-void Library::addReader() {
-    int ticket = readInt("Номер билета: ", 1, 1000000);
-    if (!isTicketUnique(ticket)) {
-        std::cout << "Читатель с таким билетом уже существует.\n";
-        return;
+void Library::findItemById() {
+    int id = readInt("id: ", 1, 1000000);
+    for (auto* item : items) {
+        if (item->getId() == id) {
+            item->printInfo();
+            std::cout << "\n";
+            return;
+        }
     }
-    std::string fullName = readNonEmpty("ФИО: ");
-    addReaderDirect(ticket, fullName);
-    std::cout << "Читатель зарегистрирован.\n";
-}
-
-void Library::addReaderDirect(int ticket, const std::string& fullName) {
-    readers.push_back(Reader(ticket, fullName));
-}
-
-void Library::findById() {
-    int id = readInt("Введите id издания: ", 1, 1000000);
-    LibraryItem* item = findItemPtr(id);
-    if (!item) {
-        std::cout << "Издание не найдено.\n";
-        return;
-    }
-    item->printInfo();
+    std::cout << "Издание не найдено\n";
 }
 
 void Library::issueItem() {
-    int id = readInt("Введите id издания: ", 1, 1000000);
-    LibraryItem* item = findItemPtr(id);
-    if (!item) {
-        std::cout << "Издание не найдено.\n";
-        return;
-    }
-    if (!item->isAvailable()) {
-        std::cout << "Издание уже выдано.\n";
-        return;
-    }
-    int ticket = readInt("Введите билет читателя: ", 1, 1000000);
-    bool readerExists = false;
-    for (const auto& r : readers) {
-        if (r.getTicket() == ticket) { readerExists = true; break; }
-    }
-    if (!readerExists) {
-        std::cout << "Читатель не найден.\n";
-        return;
-    }
-    item->setAvailable(false);
-    loans.push_back(Loan(nextLoanId++, ticket, id, true));
-    std::cout << "Издание выдано.\n";
+    int ticket = readInt("readerTicket: ", 1, 1000000);
+    if (!ticketExists(ticket)) { std::cout << "Читатель не найден\n"; return; }
+    int itemId = readInt("itemId: ", 1, 1000000);
+    LibraryItem* found = nullptr;
+    for (auto* item : items) if (item->getId() == itemId) { found = item; break; }
+    if (!found) { std::cout << "Издание не найдено\n"; return; }
+    if (!found->isAvailable()) { std::cout << "Издание занято\n"; return; }
+    found->setAvailable(false);
+    loans.push_back(Loan(nextLoanId++, ticket, itemId, true));
+    std::cout << "Издание выдано\n";
 }
 
 void Library::returnItem() {
-    int id = readInt("Введите id издания: ", 1, 1000000);
-    LibraryItem* item = findItemPtr(id);
-    if (!item) {
-        std::cout << "Издание не найдено.\n";
-        return;
-    }
-    bool found = false;
+    int itemId = readInt("itemId: ", 1, 1000000);
     for (auto& loan : loans) {
-        if (loan.getItemId() == id && loan.isActive()) {
+        if (loan.getItemId() == itemId && loan.isActive()) {
             loan.setActive(false);
-            found = true;
-            break;
+            for (auto* item : items) {
+                if (item->getId() == itemId) item->setAvailable(true);
+            }
+            std::cout << "Издание возвращено\n";
+            return;
         }
     }
-    if (!found) {
-        std::cout << "Активная выдача не найдена.\n";
-        return;
-    }
-    item->setAvailable(true);
-    std::cout << "Издание возвращено.\n";
+    std::cout << "Активная выдача не найдена\n";
 }
 
-void Library::printAvailable() const {
+void Library::printAvailable() {
     bool any = false;
     for (auto* item : items) {
         if (item->isAvailable()) {
             item->printInfo();
+            std::cout << "\n";
             any = true;
         }
     }
-    if (!any) std::cout << "Нет доступных изданий.\n";
+    if (!any) std::cout << "Нет доступных изданий\n";
 }
 
-void Library::printActiveLoans() const {
+void Library::printActiveLoans() {
     bool any = false;
     for (const auto& loan : loans) {
         if (loan.isActive()) {
-            loan.printInfo();
+            std::cout << "id=" << loan.getId()
+                      << " readerTicket=" << loan.getReaderTicket()
+                      << " itemId=" << loan.getItemId() << "\n";
             any = true;
         }
     }
-    if (!any) std::cout << "Нет активных выдач.\n";
+    if (!any) std::cout << "Нет активных выдач\n";
 }
 
-void Library::saveAll() const {
-    std::ofstream fitems("items.txt");
+void Library::save() {
+    std::ofstream fi("items.txt");
     for (auto* item : items) {
-        if (item->type() == "Book") {
-            Book* b = dynamic_cast<Book*>(item);
-            fitems << "Book;" << b->getId() << ";" << b->getTitle() << ";"
-                   << b->getYear() << ";" << b->isAvailable() << ";"
-                   << b->getAuthor() << ";" << b->getIsbn() << "\n";
-        } else if (item->type() == "Magazine") {
-            Magazine* m = dynamic_cast<Magazine*>(item);
-            fitems << "Magazine;" << m->getId() << ";" << m->getTitle() << ";"
-                   << m->getYear() << ";" << m->isAvailable() << ";"
-                   << m->getIssueNumber() << ";" << m->getMonth() << "\n";
-        }
+        fi << item->type() << ";" << item->getId() << ";" << item->getTitle()
+           << ";" << item->getYear() << ";" << (item->isAvailable() ? 1 : 0)
+           << ";" << item->specific1() << ";" << item->specific2() << "\n";
     }
-    fitems.close();
+    fi.close();
 
-    std::ofstream freaders("readers.txt");
+    std::ofstream fr("readers.txt");
     for (const auto& r : readers) {
-        freaders << r.getTicket() << ";" << r.getFullName() << "\n";
+        fr << r.getTicket() << ";" << r.getFullName() << "\n";
     }
-    freaders.close();
+    fr.close();
 
-    std::ofstream floans("loans.txt");
+    std::ofstream fl("loans.txt");
     for (const auto& l : loans) {
-        floans << l.getId() << ";" << l.getReaderTicket() << ";"
-               << l.getItemId() << ";" << l.isActive() << "\n";
+        fl << l.getId() << ";" << l.getReaderTicket() << ";"
+           << l.getItemId() << ";" << (l.isActive() ? 1 : 0) << "\n";
     }
-    floans.close();
+    fl.close();
 
-    std::cout << "Данные сохранены.\n";
+    std::cout << "Сохранено\n";
 }
 
-void Library::loadAll() {
-    std::ifstream fitems("items.txt");
-    if (fitems.is_open()) {
-        std::string line;
-        while (std::getline(fitems, line)) {
-            if (line.empty()) continue;
-            auto parts = split(line, ';');
-            if (parts.size() < 7) continue;
-            std::string type = parts[0];
-            int id = std::stoi(parts[1]);
-            std::string title = parts[2];
-            int year = std::stoi(parts[3]);
-            bool available = std::stoi(parts[4]);
-            if (type == "Book") {
-                items.push_back(new Book(id, title, year, available, parts[5], parts[6]));
-            } else if (type == "Magazine") {
-                items.push_back(new Magazine(id, title, year, available,
-                                             std::stoi(parts[5]), std::stoi(parts[6])));
-            }
-            if (id >= nextItemId) nextItemId = id + 1;
+void Library::load() {
+    std::ifstream fi("items.txt");
+    std::string line;
+    while (std::getline(fi, line)) {
+        if (line.empty()) continue;
+        auto p = split(line, ';');
+        if (p.size() < 7) continue;
+        int id = std::stoi(p[1]);
+        int year = std::stoi(p[3]);
+        bool avail = p[4] == "1";
+        if (p[0] == "Book") {
+            items.push_back(new Book(id, p[2], year, avail, p[5], p[6]));
+        } else if (p[0] == "Magazine") {
+            items.push_back(new Magazine(id, p[2], year, avail,
+                                         std::stoi(p[5]), std::stoi(p[6])));
         }
-        fitems.close();
     }
+    fi.close();
 
-    std::ifstream freaders("readers.txt");
-    if (freaders.is_open()) {
-        std::string line;
-        while (std::getline(freaders, line)) {
-            if (line.empty()) continue;
-            auto parts = split(line, ';');
-            if (parts.size() < 2) continue;
-            readers.push_back(Reader(std::stoi(parts[0]), parts[1]));
-        }
-        freaders.close();
+    std::ifstream fr("readers.txt");
+    while (std::getline(fr, line)) {
+        if (line.empty()) continue;
+        auto p = split(line, ';');
+        if (p.size() < 2) continue;
+        readers.push_back(Reader(std::stoi(p[0]), p[1]));
     }
+    fr.close();
 
-    std::ifstream floans("loans.txt");
-    if (floans.is_open()) {
-        std::string line;
-        while (std::getline(floans, line)) {
-            if (line.empty()) continue;
-            auto parts = split(line, ';');
-            if (parts.size() < 4) continue;
-            int id = std::stoi(parts[0]);
-            loans.push_back(Loan(id, std::stoi(parts[1]),
-                                 std::stoi(parts[2]), std::stoi(parts[3])));
-            if (id >= nextLoanId) nextLoanId = id + 1;
-        }
-        floans.close();
+    std::ifstream fl("loans.txt");
+    while (std::getline(fl, line)) {
+        if (line.empty()) continue;
+        auto p = split(line, ';');
+        if (p.size() < 4) continue;
+        int id = std::stoi(p[0]);
+        loans.push_back(Loan(id, std::stoi(p[1]), std::stoi(p[2]), p[3] == "1"));
+        if (id >= nextLoanId) nextLoanId = id + 1;
     }
+    fl.close();
 }
